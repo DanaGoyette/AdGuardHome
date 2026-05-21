@@ -1,6 +1,7 @@
 package dnsforward
 
 import (
+	"net"
 	"net/netip"
 
 	"github.com/AdguardTeam/AdGuardHome/internal/client"
@@ -13,6 +14,11 @@ type ClientsContainer interface {
 	// any.  It prioritizes ClientID over client IP address to identify the
 	// client.
 	CustomUpstreamConfig(clientID string, cliAddr netip.Addr) (conf *proxy.CustomUpstreamConfig)
+
+	// ClientIDByMAC returns a configured ClientID for a client matching the
+	// provided MAC address.  It is used to resolve EDNS-provided MAC identifiers
+	// into a client ID for downstream processing.
+	ClientIDByMAC(mac net.HardwareAddr) (clientID string, ok bool)
 
 	// UpdateCommonUpstreamConfig updates the common upstream configuration.
 	UpdateCommonUpstreamConfig(conf *client.CommonUpstreamConfig)
@@ -35,6 +41,10 @@ func (EmptyClientsContainer) CustomUpstreamConfig(
 	cliAddr netip.Addr,
 ) (conf *proxy.CustomUpstreamConfig) {
 	return nil
+}
+
+func (EmptyClientsContainer) ClientIDByMAC(mac net.HardwareAddr) (clientID string, ok bool) {
+	return "", false
 }
 
 // UpdateCommonUpstreamConfig implements the [ClientsContainer] interface for

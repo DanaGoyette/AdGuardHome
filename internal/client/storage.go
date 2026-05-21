@@ -746,6 +746,24 @@ func (s *Storage) CustomUpstreamConfig(
 	return s.upstreamManager.customUpstreamConfig(c.UID, c.Name)
 }
 
+// ClientIDByMAC implements the [dnsforward.ClientsContainer]
+// interface for *Storage.
+func (s *Storage) ClientIDByMAC(mac net.HardwareAddr) (clientID string, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	c, ok := s.index.findByMAC(mac)
+	if !ok {
+		return "", false
+	}
+
+	if len(c.ClientIDs) == 0 {
+		return "", false
+	}
+
+	return string(c.ClientIDs[0]), true
+}
+
 // UpdateCommonUpstreamConfig implements the [dnsforward.ClientsContainer]
 // interface for *Storage
 func (s *Storage) UpdateCommonUpstreamConfig(conf *CommonUpstreamConfig) {

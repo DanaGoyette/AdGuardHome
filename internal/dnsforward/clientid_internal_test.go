@@ -1,6 +1,7 @@
 package dnsforward
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/AdguardTeam/dnsproxy/proxy"
 	"github.com/AdguardTeam/golibs/testutil"
+	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -257,6 +259,45 @@ func newHTTPReq(cliSrvName string, inclTLS bool) (r *http.Request) {
 	}
 
 	return r
+}
+
+func TestServer_clientIDFromDNSContext_EDNSMAC(t *testing.T) {
+	tlsConf := &TLSConfig{}
+
+	srv := &Server{
+		conf: ServerConfig{
+			TLSConf: tlsConf,
+			Config: Config{
+				ClientsContainer: &clientsContainer{
+					OnClientIDByMAC: func(mac net.HardwareAddr) (string, bool) {
+						assert.Equal(t, net.HardwareAddr{0x11, 0x22, 0x33, 0x44, 0x55, 0x66}, mac)
+
+						return "mac-client", true
+					},
+				},
+			},
+		},
+		baseLogger: testLogger,
+		logger:     testLogger,
+	}
+
+	req := new(dns.Msg)
+	req.SetQuestion("example.com.", dns.TypeA)
+	req.SetEdns0(4096, false)
+	opt := req.IsEdns0()
+	opt.Option = append(opt.Option, &dns.EDNS0_LOCAL{
+		Code: EDNS_MAC_RAW_CODE,
+		Data: net.HardwareAddr{0x11, 0x22, 0x33, 0x44, 0x55, 0x66},
+	})
+
+	pctx := &proxy.DNSContext{
+		Proto: proxy.ProtoUDP,
+		Req:   req,
+	}
+
+	clientID, err := srv.clientIDFromDNSContext(context.Background(), testLogger, pctx)
+	assert.NoError(t, err)
+	assert.Equal(t, "mac-client", clientID)
 }
 
 func TestClientIDFromDNSContextHTTPS(t *testing.T) {

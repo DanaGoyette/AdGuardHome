@@ -79,6 +79,8 @@ type clientsContainer struct {
 		cliAddr netip.Addr,
 	) (conf *proxy.CustomUpstreamConfig)
 
+	OnClientIDByMAC func(mac net.HardwareAddr) (clientID string, ok bool)
+
 	OnUpdateCommonUpstreamConfig func(conf *client.CommonUpstreamConfig)
 
 	OnClearUpstreamCache func()
@@ -97,6 +99,14 @@ func (c *clientsContainer) CustomUpstreamConfig(
 // *clientsContainer.
 func (c *clientsContainer) UpdateCommonUpstreamConfig(conf *client.CommonUpstreamConfig) {
 	c.OnUpdateCommonUpstreamConfig(conf)
+}
+
+func (c *clientsContainer) ClientIDByMAC(mac net.HardwareAddr) (clientID string, ok bool) {
+	if c.OnClientIDByMAC == nil {
+		return "", false
+	}
+
+	return c.OnClientIDByMAC(mac)
 }
 
 // ClearUpstreamCache implements the [ClientsContainer] interface for

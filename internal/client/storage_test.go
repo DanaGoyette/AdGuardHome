@@ -1292,6 +1292,34 @@ func TestStorage_CustomUpstreamConfig(t *testing.T) {
 	})
 }
 
+func TestStorage_ClientIDByMAC(t *testing.T) {
+	const expectedClientID = "client-from-mac"
+
+	ctx := testutil.ContextWithTimeout(t, testTimeout)
+	s := newTestStorage(t, &faketime.Clock{OnNow: time.Now})
+
+	testutil.CleanupAndRequireSuccess(t, func() (err error) {
+		return s.Shutdown(testutil.ContextWithTimeout(t, testTimeout))
+	})
+
+	mac := errors.Must(net.ParseMAC("11:22:33:44:55:66"))
+	err := s.Add(ctx, &client.Persistent{
+		Name:      "client-mac",
+		MACs:      []net.HardwareAddr{mac},
+		ClientIDs: []client.ClientID{expectedClientID},
+		UID:       client.MustNewUID(),
+	})
+	require.NoError(t, err)
+
+	clientID, ok := s.ClientIDByMAC(mac)
+	require.True(t, ok)
+	assert.Equal(t, expectedClientID, clientID)
+
+	clientID, ok = s.ClientIDByMAC(errors.Must(net.ParseMAC("aa:bb:cc:dd:ee:ff")))
+	assert.False(t, ok)
+	assert.Empty(t, clientID)
+}
+
 func BenchmarkFindParams_Set(b *testing.B) {
 	const (
 		testIPStr    = "192.0.2.1"

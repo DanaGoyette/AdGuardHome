@@ -102,6 +102,7 @@ func (s *Server) clientIDFromDNSContext(
 	pctx *proxy.DNSContext,
 ) (clientID string, err error) {
 	proto := pctx.Proto
+
 	if proto == proxy.ProtoHTTPS {
 		clientID, err = clientIDFromDNSContextHTTPS(pctx)
 		if err != nil {
@@ -112,8 +113,17 @@ func (s *Server) clientIDFromDNSContext(
 
 		// Go on and check the domain name as well.
 	} else if proto != proxy.ProtoTLS && proto != proxy.ProtoQUIC {
-		return "", nil
+		// For non-DoT/DoQ protocols, check the EDNS MAC option.
+		clientID, ok := s.clientIDFromEDNSMAC(pctx)
+		if ok {
+			return clientID, nil
+		} else {
+			return "", nil
+		}
 	}
+
+	// Technically, DoT and DoQ could contain the MAC option,
+	// but that's not currently checked.
 
 	hostSrvName := s.conf.TLSConf.ServerName
 	if hostSrvName == "" {
@@ -135,6 +145,20 @@ func (s *Server) clientIDFromDNSContext(
 	}
 
 	return clientID, nil
+}
+
+func (s *Server) clientIDFromEDNSMAC(pctx *proxy.DNSContext) (clientID string, ok bool) {
+	if pctx == nil || pctx.Req == nil {
+		return "", false
+	}
+
+	mac, got := ednsMACFromMsg(pctx.Req)
+	if !got {
+		return "", false
+	}
+
+	clientID, ok = s.conf.ClientsContainer.ClientIDByMAC(mac)
+	return clientID, ok
 }
 
 // logMiddleware adds a logger using [slogutil.ContextWithLogger] and logs the
